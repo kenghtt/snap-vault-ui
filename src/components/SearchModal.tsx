@@ -24,6 +24,21 @@ export default function SearchModal({ open, onClose, sections, panelClassName }:
     }
   }, [open])
 
+  // Ensure Escape always closes the modal, regardless of focus
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: globalThis.KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        e.preventDefault()
+        onClose()
+      }
+    }
+    // Use capture to catch it early even if other handlers stop it later
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
+  }, [open, onClose])
+
   const results = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return [] as string[]
