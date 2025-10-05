@@ -76,4 +76,5 @@ export default defineConfig([
 ## Preview Rules and Recommended Repos
 
 - Preview scope and rules: see rules.md
+- Currently supported previews in this app (MVP): docs/supported-previews.md
 - Recommended, actively maintained GitHub repos for implementing previews: docs/preview-tech-stack.md

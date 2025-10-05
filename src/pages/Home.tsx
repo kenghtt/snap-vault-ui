@@ -6,6 +6,7 @@ import DropZone, { type PastedEntry } from '../components/DropZone'
 import PastedItemsSidebar from '../components/PastedItemsSidebar'
 import PdfPreviewModal from '../components/PdfPreviewModal'
 import ImagePreviewModal from '../components/ImagePreviewModal'
+import TextPreviewModal from '../components/TextPreviewModal'
 
 
 export default function Home() {
@@ -22,6 +23,9 @@ export default function Home() {
   // Image preview modal state
   const [imageOpen, setImageOpen] = useState(false)
   const [imageUrl, setImageUrl] = useState<string | null>(null)
+  // Text preview modal state
+  const [textOpen, setTextOpen] = useState(false)
+  const [textEntry, setTextEntry] = useState<PastedEntry | null>(null)
 
   const sections = useMemo(
     () => [
@@ -163,20 +167,37 @@ export default function Home() {
           items={pastedItems}
           onItemClick={(entry) => {
             if (entry.kind === 'file') {
-              const name = entry.name?.toLowerCase() || ''
-              const mime = entry.mime?.toLowerCase() || ''
-              const isImage = mime.startsWith('image/') || /(\.png|\.jpg|\.jpeg|\.gif|\.webp|\.bmp|\.svg)$/i.test(name)
-              const isPdf = mime.includes('pdf') || name.endsWith('.pdf')
-              const url = entry.url ? entry.url : (entry.file ? URL.createObjectURL(entry.file) : null)
-              if (url) {
-                if (isImage) {
-                  setImageUrl(url)
-                  setImageOpen(true)
-                } else if (isPdf) {
+              const name = entry.name?.toLowerCase()
+              const mime = entry.mime?.toLowerCase()
+              const isPdf = (mime?.includes('pdf') ?? false) || (name?.endsWith('.pdf') ?? false)
+              const isImage = !!(mime?.startsWith('image/') || (name ? /\.(png|jpe?g|gif|webp|bmp|svg)$/.test(name) : false))
+              const isTextLike = (mime?.startsWith('text/') ?? false) || (mime?.includes('json') ?? false) || (mime?.includes('csv') ?? false) || (name ? /\.(txt|md|log|json|csv)$/.test(name) : false)
+
+              if (isPdf) {
+                const url = entry.url ? entry.url : (entry.file ? URL.createObjectURL(entry.file) : null)
+                if (url) {
                   setPdfUrl(url)
                   setPdfOpen(true)
                 }
+                return
               }
+              if (isImage) {
+                const url = entry.url ? entry.url : (entry.file ? URL.createObjectURL(entry.file) : null)
+                if (url) {
+                  setImageUrl(url)
+                  setImageOpen(true)
+                }
+                return
+              }
+              if (isTextLike) {
+                setTextEntry(entry)
+                setTextOpen(true)
+                return
+              }
+            } else if (entry.kind === 'text') {
+              setTextEntry(entry)
+              setTextOpen(true)
+              return
             }
           }}
         />
@@ -226,6 +247,7 @@ export default function Home() {
       <SearchModal open={cmdkOpen} onClose={() => setCmdkOpen(false)} sections={sections} />
       <PdfPreviewModal open={pdfOpen} url={pdfUrl} onClose={() => setPdfOpen(false)} />
       <ImagePreviewModal open={imageOpen} url={imageUrl} onClose={() => setImageOpen(false)} />
+      <TextPreviewModal open={textOpen} entry={textEntry} onClose={() => setTextOpen(false)} />
     </div>
   )
 }
