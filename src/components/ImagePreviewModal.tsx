@@ -38,7 +38,7 @@ export default function ImagePreviewModal({ open, url, alt = 'Image preview', on
       <div className="w-[min(96vw,1400px)] h-[min(90vh,900px)] bg-base-100 border border-base-300 rounded-box shadow-xl overflow-hidden flex items-center justify-center p-4">
         {/* Constrain image area */}
         <div className="max-w-full max-h-full">
-          <Zoom wrapStyle={{ display: 'inline-block', maxWidth: '100%', maxHeight: '100%' }} overlayBgColorEnd="rgba(0,0,0,0.8)">
+          <Zoom>
             <img
               src={url}
               alt={alt}

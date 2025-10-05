@@ -159,6 +159,20 @@ export default function TextPreviewModal({ open, entry, onClose }: TextPreviewMo
     return parseCsvSubset(rawText)
   }, [kind, rawText])
 
+  // Ensure Escape always closes, regardless of focus
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopPropagation()
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
+  }, [open, onClose])
+
   if (!open || !entry) return null
 
   return (
