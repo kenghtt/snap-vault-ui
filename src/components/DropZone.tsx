@@ -1,10 +1,10 @@
 
 
-import React, { useEffect, useRef, useState, type DragEvent } from 'react'
+import { useEffect, useRef, useState, type DragEvent } from 'react'
 
 export type PastedEntry =
   | { kind: 'text'; text: string; displayName?: string }
-  | { kind: 'file'; mime: string; name?: string; size?: number; displayName?: string }
+  | { kind: 'file'; mime: string; name?: string; size?: number; displayName?: string; file?: File; url?: string }
 
 interface DropZoneProps {
   onEntries: (entries: PastedEntry[]) => void
@@ -28,7 +28,8 @@ export default function DropZone({ onEntries }: DropZoneProps) {
     if (dt) {
       if (dt.files && dt.files.length > 0) {
         Array.from(dt.files).forEach((file) => {
-          entries.push({ kind: 'file', mime: file.type || 'application/octet-stream', name: file.name, size: file.size })
+          const url = URL.createObjectURL(file)
+          entries.push({ kind: 'file', mime: file.type || 'application/octet-stream', name: file.name, size: file.size, file, url })
         })
       }
       const text = dt.getData && dt.getData('text/plain')
@@ -40,7 +41,8 @@ export default function DropZone({ onEntries }: DropZoneProps) {
           if (item.kind === 'file') {
             const file = item.getAsFile()
             if (file) {
-              entries.push({ kind: 'file', mime: file.type || item.type || 'application/octet-stream', name: file.name, size: file.size })
+              const url = URL.createObjectURL(file)
+              entries.push({ kind: 'file', mime: file.type || item.type || 'application/octet-stream', name: file.name, size: file.size, file, url })
             }
           }
         })
@@ -66,7 +68,8 @@ export default function DropZone({ onEntries }: DropZoneProps) {
         }
         if (dt.files && dt.files.length > 0) {
           Array.from(dt.files).forEach((file) => {
-            entries.push({ kind: 'file', mime: file.type || 'application/octet-stream', name: file.name, size: file.size })
+            const url = URL.createObjectURL(file)
+            entries.push({ kind: 'file', mime: file.type || 'application/octet-stream', name: file.name, size: file.size, file, url })
           })
         }
         if (dt.items && dt.items.length > 0) {

@@ -4,6 +4,7 @@ import SectionsSidebar from '../components/SectionsSidebar'
 import SearchInput from '../components/SearchInput'
 import DropZone, { type PastedEntry } from '../components/DropZone'
 import PastedItemsSidebar from '../components/PastedItemsSidebar'
+import PdfPreviewModal from '../components/PdfPreviewModal'
 
 
 export default function Home() {
@@ -14,6 +15,9 @@ export default function Home() {
   const [renameOpen, setRenameOpen] = useState(false)
   const [renameInput, setRenameInput] = useState('')
   const [pendingEntry, setPendingEntry] = useState<PastedEntry | null>(null)
+  // PDF preview modal state
+  const [pdfOpen, setPdfOpen] = useState(false)
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null)
 
   const sections = useMemo(
     () => [
@@ -151,7 +155,21 @@ export default function Home() {
         </main>
 
         {/* Far right sidebar for pasted items */}
-        <PastedItemsSidebar items={pastedItems} />
+        <PastedItemsSidebar
+          items={pastedItems}
+          onItemClick={(entry) => {
+            if (entry.kind === 'file') {
+              const isPdf = (entry.mime?.toLowerCase().includes('pdf')) || (entry.name?.toLowerCase().endsWith('.pdf'))
+              if (isPdf) {
+                const url = entry.url ? entry.url : (entry.file ? URL.createObjectURL(entry.file) : null)
+                if (url) {
+                  setPdfUrl(url)
+                  setPdfOpen(true)
+                }
+              }
+            }
+          }}
+        />
       </div>
       {renameOpen && (
         <div
@@ -196,6 +214,7 @@ export default function Home() {
       )}
 
       <SearchModal open={cmdkOpen} onClose={() => setCmdkOpen(false)} sections={sections} />
+      <PdfPreviewModal open={pdfOpen} url={pdfUrl} onClose={() => setPdfOpen(false)} />
     </div>
   )
 }

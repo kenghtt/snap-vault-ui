@@ -1,5 +1,3 @@
-import React from 'react'
-
 export type Section = { title: string; items: string[] }
 
 function SectionList({ title, items }: { title: string; items: string[] }) {
