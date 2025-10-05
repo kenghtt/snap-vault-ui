@@ -72,3 +72,8 @@ export default defineConfig([
 ])
 ```
 # snap-vault-ui
+
+## Preview Rules and Recommended Repos
+
+- Preview scope and rules: see rules.md
+- Recommended, actively maintained GitHub repos for implementing previews: docs/preview-tech-stack.md
