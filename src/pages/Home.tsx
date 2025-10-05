@@ -5,6 +5,7 @@ import SearchInput from '../components/SearchInput'
 import DropZone, { type PastedEntry } from '../components/DropZone'
 import PastedItemsSidebar from '../components/PastedItemsSidebar'
 import PdfPreviewModal from '../components/PdfPreviewModal'
+import ImagePreviewModal from '../components/ImagePreviewModal'
 
 
 export default function Home() {
@@ -18,6 +19,9 @@ export default function Home() {
   // PDF preview modal state
   const [pdfOpen, setPdfOpen] = useState(false)
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
+  // Image preview modal state
+  const [imageOpen, setImageOpen] = useState(false)
+  const [imageUrl, setImageUrl] = useState<string | null>(null)
 
   const sections = useMemo(
     () => [
@@ -159,10 +163,16 @@ export default function Home() {
           items={pastedItems}
           onItemClick={(entry) => {
             if (entry.kind === 'file') {
-              const isPdf = (entry.mime?.toLowerCase().includes('pdf')) || (entry.name?.toLowerCase().endsWith('.pdf'))
-              if (isPdf) {
-                const url = entry.url ? entry.url : (entry.file ? URL.createObjectURL(entry.file) : null)
-                if (url) {
+              const name = entry.name?.toLowerCase() || ''
+              const mime = entry.mime?.toLowerCase() || ''
+              const isImage = mime.startsWith('image/') || /(\.png|\.jpg|\.jpeg|\.gif|\.webp|\.bmp|\.svg)$/i.test(name)
+              const isPdf = mime.includes('pdf') || name.endsWith('.pdf')
+              const url = entry.url ? entry.url : (entry.file ? URL.createObjectURL(entry.file) : null)
+              if (url) {
+                if (isImage) {
+                  setImageUrl(url)
+                  setImageOpen(true)
+                } else if (isPdf) {
                   setPdfUrl(url)
                   setPdfOpen(true)
                 }
@@ -215,6 +225,7 @@ export default function Home() {
 
       <SearchModal open={cmdkOpen} onClose={() => setCmdkOpen(false)} sections={sections} />
       <PdfPreviewModal open={pdfOpen} url={pdfUrl} onClose={() => setPdfOpen(false)} />
+      <ImagePreviewModal open={imageOpen} url={imageUrl} onClose={() => setImageOpen(false)} />
     </div>
   )
 }
