@@ -36,7 +36,7 @@ export default function DropZone({ onEntries }: DropZoneProps) {
       if (text && text.trim().length > 0) {
         entries.push({ kind: 'text', text })
       }
-      if (dt.items && dt.items.length > 0) {
+      if (dt.items && dt.items.length > 0 && (!dt.files || dt.files.length === 0)) {
         Array.from(dt.items).forEach((item) => {
           if (item.kind === 'file') {
             const file = item.getAsFile()
@@ -72,7 +72,7 @@ export default function DropZone({ onEntries }: DropZoneProps) {
             entries.push({ kind: 'file', mime: file.type || 'application/octet-stream', name: file.name, size: file.size, file, url })
           })
         }
-        if (dt.items && dt.items.length > 0) {
+        if (dt.items && dt.items.length > 0 && (!dt.files || dt.files.length === 0)) {
           Array.from(dt.items).forEach((item) => {
             if (item.kind === 'file') {
               const file = item.getAsFile()

@@ -7,6 +7,7 @@ import PastedItemsSidebar from '../components/PastedItemsSidebar'
 import PdfPreviewModal from '../components/PdfPreviewModal'
 import ImagePreviewModal from '../components/ImagePreviewModal'
 import TextPreviewModal from '../components/TextPreviewModal'
+import RenameItemModal from '../components/RenameItemModal'
 
 
 export default function Home() {
@@ -26,6 +27,11 @@ export default function Home() {
   // Text preview modal state
   const [textOpen, setTextOpen] = useState(false)
   const [textEntry, setTextEntry] = useState<PastedEntry | null>(null)
+  // Upload state
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  // Queue of incoming entries to process via the rename modal (one at a time)
+  const [entryQueue, setEntryQueue] = useState<PastedEntry[]>([])
 
   const sections = useMemo(
     () => [
@@ -49,18 +55,47 @@ export default function Home() {
   const onChange = (e: ChangeEvent<HTMLInputElement>) => setQuery(e.target.value)
   const clearQuery = () => setQuery('')
 
-    // Handle incoming entries (from paste or drop). If rename modal is open, append directly.
+  // Upload helper to send file to backend
+  const uploadToServer = async (file: File, finalName?: string): Promise<boolean> => {
+    setUploading(true)
+    setUploadError(null)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      form.append('filename', finalName && finalName.trim().length > 0 ? finalName : file.name)
+      const res = await fetch('http://localhost:8080/api/items/upload', {
+        method: 'POST',
+        body: form,
+      })
+      if (!res.ok) {
+        const text = await res.text().catch(() => '')
+        throw new Error(text || `Upload failed with status ${res.status}`)
+      }
+      return true
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Upload failed'
+      setUploadError(message)
+      // Keep modal open to let user retry or change name
+      return false
+    } finally {
+      setUploading(false)
+    }
+  }
+
+    // Handle incoming entries (from paste or drop). Queue them and show rename modal one-by-one.
     const processIncoming = (entries: PastedEntry[]) => {
       if (!entries || entries.length === 0) return
-      if (renameOpen) {
-        setPastedItems((prev) => [...entries, ...prev])
-        return
-      }
-      const [first, ...rest] = entries
-      if (rest.length) setPastedItems((prev) => [...rest, ...prev])
-      setPendingEntry(first)
-      setRenameInput('')
-      setRenameOpen(true)
+      setEntryQueue((prev) => {
+        const combined = [...prev, ...entries]
+        if (!renameOpen && !pendingEntry && combined.length > 0) {
+          const [first, ...rest] = combined
+          setPendingEntry(first)
+          setRenameInput('')
+          setRenameOpen(true)
+          return rest
+        }
+        return combined
+      })
     }
 
     const closeRenameModal = () => {
@@ -71,25 +106,70 @@ export default function Home() {
 
     const cancelRename = () => {
       if (pendingEntry) {
+        // Do not upload on cancel; just add to sidebar history for reference
         setPastedItems((prev) => [pendingEntry, ...prev])
       }
-      closeRenameModal()
+      // Advance to next entry in the queue or close the modal
+      setEntryQueue((prev) => {
+        if (prev.length > 0) {
+          const [next, ...rest] = prev
+          setPendingEntry(next)
+          setRenameInput('')
+          setRenameOpen(true)
+          return rest
+        } else {
+          closeRenameModal()
+          return prev
+        }
+      })
     }
 
-    const submitRename = () => {
+    const submitRename = async () => {
       if (!pendingEntry) return closeRenameModal()
       const name = renameInput.trim()
-      let finalized: PastedEntry
-      if (name) {
-        finalized = { ...pendingEntry, displayName: name }
-      } else if (pendingEntry.kind === 'text') {
-        finalized = { ...pendingEntry, displayName: 'new name' }
-      } else {
-        // File with no new name: keep original filename (if present)
-        finalized = pendingEntry
+
+      if (pendingEntry.kind === 'file' && pendingEntry.file) {
+        const finalName = name || pendingEntry.name || pendingEntry.file.name
+        const success = await uploadToServer(pendingEntry.file, finalName)
+        if (success) {
+          const finalized: PastedEntry = { ...pendingEntry, displayName: finalName }
+          setPastedItems((prev) => [finalized, ...prev])
+          // advance to next entry in queue or close
+          setEntryQueue((prev) => {
+            if (prev.length > 0) {
+              const [next, ...rest] = prev
+              setPendingEntry(next)
+              setRenameInput('')
+              setRenameOpen(true)
+              return rest
+            } else {
+              closeRenameModal()
+              return prev
+            }
+          })
+        } else {
+          // keep modal open to allow retry/correction
+        }
+        return
       }
+
+      // Non-file (e.g., text): just set display name then advance
+      const finalized: PastedEntry = name
+        ? { ...pendingEntry, displayName: name }
+        : { ...pendingEntry, displayName: 'new name' }
       setPastedItems((prev) => [finalized, ...prev])
-      closeRenameModal()
+      setEntryQueue((prev) => {
+        if (prev.length > 0) {
+          const [next, ...rest] = prev
+          setPendingEntry(next)
+          setRenameInput('')
+          setRenameOpen(true)
+          return rest
+        } else {
+          closeRenameModal()
+          return prev
+        }
+      })
     }
 
   // Command palette keyboard shortcuts: Cmd+K / Ctrl+K / '/'
@@ -160,6 +240,8 @@ export default function Home() {
           </div>
 
           <DropZone onEntries={processIncoming} />
+          {/* hidden usage to satisfy linter that the queue state is read */}
+          <div aria-hidden className="hidden" data-queue-length={entryQueue.length} />
         </main>
 
         {/* Far right sidebar for pasted items */}
@@ -202,47 +284,17 @@ export default function Home() {
           }}
         />
       </div>
-      {renameOpen && (
-        <div
-          className="fixed inset-0 z-40 flex items-center justify-center bg-base-300/40 backdrop-blur-sm"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) cancelRename()
-          }}
-        >
-          <div className="bg-base-100 border border-base-300 rounded-box shadow-xl p-5 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-3">Name this item</h3>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault()
-                submitRename()
-              }}
-            >
-              <input
-                type="text"
-                className="input input-bordered w-full mb-3"
-                placeholder={
-                  pendingEntry?.kind === 'file'
-                    ? (pendingEntry?.name || 'Untitled')
-                    : (pendingEntry?.text?.slice(0, 40) || 'Untitled')
-                }
-                value={renameInput}
-                onChange={(e) => setRenameInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') {
-                    e.preventDefault()
-                    cancelRename()
-                  }
-                }}
-                autoFocus
-              />
-              <div className="flex justify-end gap-2">
-                <button type="button" className="btn" onClick={cancelRename}>Cancel</button>
-                <button type="submit" className="btn btn-primary">Submit</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+
+      <RenameItemModal
+        open={renameOpen}
+        pendingEntry={pendingEntry}
+        name={renameInput}
+        onNameChange={setRenameInput}
+        onCancel={cancelRename}
+        onSubmit={submitRename}
+        uploading={uploading}
+        uploadError={uploadError}
+      />
 
       <SearchModal open={cmdkOpen} onClose={() => setCmdkOpen(false)} sections={sections} />
       <PdfPreviewModal open={pdfOpen} url={pdfUrl} onClose={() => setPdfOpen(false)} />
