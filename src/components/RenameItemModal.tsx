@@ -4,7 +4,9 @@ interface RenameItemModalProps {
   open: boolean
   pendingEntry: PastedEntry | null
   name: string
+  description: string
   onNameChange: (value: string) => void
+  onDescriptionChange: (value: string) => void
   onCancel: () => void
   onSubmit: () => void
   uploading: boolean
@@ -15,7 +17,9 @@ export default function RenameItemModal({
   open,
   pendingEntry,
   name,
+  description,
   onNameChange,
+  onDescriptionChange,
   onCancel,
   onSubmit,
   uploading,
@@ -55,6 +59,20 @@ export default function RenameItemModal({
             }}
             autoFocus
             disabled={uploading}
+          />
+          <textarea
+            className="textarea textarea-bordered w-full mb-2"
+            placeholder="Optional description"
+            value={description}
+            onChange={(e) => onDescriptionChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.preventDefault()
+                onCancel()
+              }
+            }}
+            disabled={uploading}
+            rows={3}
           />
           {uploadError && (
             <div className="text-error text-sm mb-2">{uploadError}</div>

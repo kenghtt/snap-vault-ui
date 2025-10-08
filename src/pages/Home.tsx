@@ -17,6 +17,7 @@ export default function Home() {
   // Rename modal state
   const [renameOpen, setRenameOpen] = useState(false)
   const [renameInput, setRenameInput] = useState('')
+  const [renameDescription, setRenameDescription] = useState('')
   const [pendingEntry, setPendingEntry] = useState<PastedEntry | null>(null)
   // PDF preview modal state
   const [pdfOpen, setPdfOpen] = useState(false)
@@ -55,14 +56,62 @@ export default function Home() {
   const onChange = (e: ChangeEvent<HTMLInputElement>) => setQuery(e.target.value)
   const clearQuery = () => setQuery('')
 
-  // Upload helper to send file to backend
-  const uploadToServer = async (file: File, finalName?: string): Promise<boolean> => {
+  // Determine if text is likely a resolvable URL to open in a browser tab
+  const isProbablyUrl = (text: string): boolean => {
+    const t = text.trim()
+    if (!t) return false
+    // Accept http(s) and protocol-less common cases starting with www.
+    const withProto = /^https?:\/\//i.test(t) ? t : (/^www\./i.test(t) ? `https://${t}` : '')
+    try {
+      const candidate = withProto || t
+      const u = new URL(candidate)
+      // Basic sanity: must have hostname and no spaces
+      return !!u.hostname && !/\s/.test(t)
+    } catch {
+      return false
+    }
+  }
+
+  // Unified upload helper to send binary/text/link to backend
+  const uploadEntryToServer = async (
+    entry: PastedEntry,
+    finalName?: string,
+    description?: string | null
+  ): Promise<boolean> => {
     setUploading(true)
     setUploadError(null)
     try {
       const form = new FormData()
-      form.append('file', file)
-      form.append('filename', finalName && finalName.trim().length > 0 ? finalName : file.name)
+      const descToSend = description == null ? '' : description
+
+      if (entry.kind === 'file' && entry.file) {
+        // Binary upload
+        form.append('kind', 'binary')
+        form.append('file', entry.file)
+        form.append('filename', (finalName && finalName.trim().length > 0 ? finalName : (entry.name || entry.file.name)))
+        if (descToSend) form.append('description', descToSend)
+      } else if (entry.kind === 'text') {
+        const text = entry.text
+        const isLink = isProbablyUrl(text)
+        if (isLink) {
+          form.append('kind', 'link')
+          form.append('title', (finalName && finalName.trim().length > 0 ? finalName : text.slice(0, 60)))
+          if (descToSend) form.append('description', descToSend)
+          // If text lacks protocol but looks like www., prepend https:// for backend
+          const url = /^https?:\/\//i.test(text.trim()) ? text.trim() : ( /^www\./i.test(text.trim()) ? `https://${text.trim()}` : text.trim() )
+          form.append('url', url)
+          // faviconUrl optional; omit
+        } else {
+          form.append('kind', 'text')
+          form.append('title', (finalName && finalName.trim().length > 0 ? finalName : text.slice(0, 60)))
+          if (descToSend) form.append('description', descToSend)
+          form.append('content', text)
+          form.append('contentFormat', 'plain')
+        }
+      } else {
+        throw new Error('Unsupported entry type')
+      }
+
       const res = await fetch('http://localhost:8080/api/items/upload', {
         method: 'POST',
         body: form,
@@ -75,7 +124,6 @@ export default function Home() {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Upload failed'
       setUploadError(message)
-      // Keep modal open to let user retry or change name
       return false
     } finally {
       setUploading(false)
@@ -91,6 +139,7 @@ export default function Home() {
           const [first, ...rest] = combined
           setPendingEntry(first)
           setRenameInput('')
+          setRenameDescription('')
           setRenameOpen(true)
           return rest
         }
@@ -102,6 +151,7 @@ export default function Home() {
       setRenameOpen(false)
       setPendingEntry(null)
       setRenameInput('')
+      setRenameDescription('')
     }
 
     const cancelRename = () => {
@@ -115,6 +165,7 @@ export default function Home() {
           const [next, ...rest] = prev
           setPendingEntry(next)
           setRenameInput('')
+          setRenameDescription('')
           setRenameOpen(true)
           return rest
         } else {
@@ -127,49 +178,36 @@ export default function Home() {
     const submitRename = async () => {
       if (!pendingEntry) return closeRenameModal()
       const name = renameInput.trim()
+      const descTrim = renameDescription.trim()
+      const descriptionToSend = descTrim.length > 0 ? descTrim : null
 
-      if (pendingEntry.kind === 'file' && pendingEntry.file) {
-        const finalName = name || pendingEntry.name || pendingEntry.file.name
-        const success = await uploadToServer(pendingEntry.file, finalName)
-        if (success) {
-          const finalized: PastedEntry = { ...pendingEntry, displayName: finalName }
-          setPastedItems((prev) => [finalized, ...prev])
-          // advance to next entry in queue or close
-          setEntryQueue((prev) => {
-            if (prev.length > 0) {
-              const [next, ...rest] = prev
-              setPendingEntry(next)
-              setRenameInput('')
-              setRenameOpen(true)
-              return rest
-            } else {
-              closeRenameModal()
-              return prev
-            }
-          })
-        } else {
-          // keep modal open to allow retry/correction
-        }
-        return
+      // Upload both file and text/link entries per backend API
+      const finalName = pendingEntry.kind === 'file'
+        ? (name || pendingEntry.name || (pendingEntry.file ? pendingEntry.file.name : 'Untitled'))
+        : (name || (pendingEntry.kind === 'text' ? pendingEntry.text.slice(0, 60) : 'Untitled'))
+
+      const success = await uploadEntryToServer(pendingEntry, finalName, descriptionToSend)
+      if (success) {
+        const finalized: PastedEntry = { ...pendingEntry, displayName: finalName }
+        setPastedItems((prev) => [finalized, ...prev])
+        // advance to next entry in queue or close
+        setEntryQueue((prev) => {
+          if (prev.length > 0) {
+            const [next, ...rest] = prev
+            setPendingEntry(next)
+            setRenameInput('')
+            setRenameDescription('')
+            setRenameOpen(true)
+            return rest
+          } else {
+            closeRenameModal()
+            return prev
+          }
+        })
+      } else {
+        // keep modal open to allow retry/correction
       }
-
-      // Non-file (e.g., text): just set display name then advance
-      const finalized: PastedEntry = name
-        ? { ...pendingEntry, displayName: name }
-        : { ...pendingEntry, displayName: 'new name' }
-      setPastedItems((prev) => [finalized, ...prev])
-      setEntryQueue((prev) => {
-        if (prev.length > 0) {
-          const [next, ...rest] = prev
-          setPendingEntry(next)
-          setRenameInput('')
-          setRenameOpen(true)
-          return rest
-        } else {
-          closeRenameModal()
-          return prev
-        }
-      })
+      return
     }
 
   // Command palette keyboard shortcuts: Cmd+K / Ctrl+K / '/'
@@ -289,7 +327,9 @@ export default function Home() {
         open={renameOpen}
         pendingEntry={pendingEntry}
         name={renameInput}
+        description={renameDescription}
         onNameChange={setRenameInput}
+        onDescriptionChange={setRenameDescription}
         onCancel={cancelRename}
         onSubmit={submitRename}
         uploading={uploading}
