@@ -81,45 +81,81 @@ export default function Home() {
     setUploading(true)
     setUploadError(null)
     try {
-      const form = new FormData()
       const descToSend = description == null ? '' : description
 
       if (entry.kind === 'file' && entry.file) {
-        // Binary upload
-        form.append('kind', 'binary')
+        // Binary upload -> POST /api/entries/binaries (multipart)
+        const form = new FormData()
         form.append('file', entry.file)
         form.append('filename', (finalName && finalName.trim().length > 0 ? finalName : (entry.name || entry.file.name)))
         if (descToSend) form.append('description', descToSend)
+
+        const res = await fetch('http://localhost:8080/api/entries/binaries', {
+          method: 'POST',
+          body: form,
+          credentials: 'include',
+        })
+        if (!res.ok) {
+          const text = await res.text().catch(() => '')
+          if (res.status === 413) {
+            throw new Error('Upload rejected: request too large (HTTP 413). Increase server/proxy upload limits (e.g., Nginx client_max_body_size, backend multipart max size).')
+          }
+          throw new Error(text || `Upload failed with status ${res.status}`)
+        }
       } else if (entry.kind === 'text') {
         const text = entry.text
         const isLink = isProbablyUrl(text)
         if (isLink) {
-          form.append('kind', 'link')
-          form.append('title', (finalName && finalName.trim().length > 0 ? finalName : text.slice(0, 60)))
-          if (descToSend) form.append('description', descToSend)
-          // If text lacks protocol but looks like www., prepend https:// for backend
-          const url = /^https?:\/\//i.test(text.trim()) ? text.trim() : ( /^www\./i.test(text.trim()) ? `https://${text.trim()}` : text.trim() )
-          form.append('url', url)
-          // faviconUrl optional; omit
+          // Link entry -> POST /api/entries/link (JSON)
+          const normalizedUrl = /^https?:\/\//i.test(text.trim())
+            ? text.trim()
+            : (/^www\./i.test(text.trim()) ? `https://${text.trim()}` : text.trim())
+          const payload: Record<string, unknown> = {
+            title: (finalName && finalName.trim().length > 0 ? finalName : text.slice(0, 60)),
+            url: normalizedUrl,
+          }
+          if (descToSend) payload.description = descToSend
+
+          const res = await fetch('http://localhost:8080/api/entries/link', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            credentials: 'include',
+          })
+          if (!res.ok) {
+            const text = await res.text().catch(() => '')
+            if (res.status === 413) {
+              throw new Error('Upload rejected: request too large (HTTP 413). Increase server/proxy upload limits (e.g., Nginx client_max_body_size, backend multipart max size).')
+            }
+            throw new Error(text || `Upload failed with status ${res.status}`)
+          }
         } else {
-          form.append('kind', 'text')
-          form.append('title', (finalName && finalName.trim().length > 0 ? finalName : text.slice(0, 60)))
-          if (descToSend) form.append('description', descToSend)
-          form.append('content', text)
-          form.append('contentFormat', 'plain')
+          // Text entry -> POST /api/entries/text (JSON)
+          const payload: Record<string, unknown> = {
+            title: (finalName && finalName.trim().length > 0 ? finalName : text.slice(0, 60)),
+            content: text,
+            contentFormat: 'plain',
+          }
+          if (descToSend) payload.description = descToSend
+
+          const res = await fetch('http://localhost:8080/api/entries/text', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            credentials: 'include',
+          })
+          if (!res.ok) {
+            const text = await res.text().catch(() => '')
+            if (res.status === 413) {
+              throw new Error('Upload rejected: request too large (HTTP 413). Increase server/proxy upload limits (e.g., Nginx client_max_body_size, backend multipart max size).')
+            }
+            throw new Error(text || `Upload failed with status ${res.status}`)
+          }
         }
       } else {
         throw new Error('Unsupported entry type')
       }
 
-      const res = await fetch('http://localhost:8080/api/items/upload', {
-        method: 'POST',
-        body: form,
-      })
-      if (!res.ok) {
-        const text = await res.text().catch(() => '')
-        throw new Error(text || `Upload failed with status ${res.status}`)
-      }
       return true
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Upload failed'
