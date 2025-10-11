@@ -1,4 +1,5 @@
 import { useMemo, useState, type ChangeEvent, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import SearchModal from '../components/SearchModal'
 import SectionsSidebar from '../components/SectionsSidebar'
 import SearchInput from '../components/SearchInput'
@@ -8,12 +9,20 @@ import PdfPreviewModal from '../components/PdfPreviewModal'
 import ImagePreviewModal from '../components/ImagePreviewModal'
 import TextPreviewModal from '../components/TextPreviewModal'
 import RenameItemModal from '../components/RenameItemModal'
+import { useAuth } from '../contexts/AuthContext'
 
 
 export default function Home() {
   const [query, setQuery] = useState('')
   const [cmdkOpen, setCmdkOpen] = useState(false)
   const [pastedItems, setPastedItems] = useState<PastedEntry[]>([])
+  const { user, signOut } = useAuth()
+  const navigate = useNavigate()
+
+  const handleSignOut = async () => {
+    await signOut()
+    navigate('/auth/login', { replace: true })
+  }
   // Rename modal state
   const [renameOpen, setRenameOpen] = useState(false)
   const [renameInput, setRenameInput] = useState('')
@@ -281,11 +290,9 @@ export default function Home() {
         <div className="flex-1">
           <a className="btn btn-ghost text-2xl font-extrabold">SnapVault</a>
         </div>
-        <div className="flex-none gap-2">
-          <a className="btn btn-ghost" href="/home">Home</a>
-          <button className="btn btn-ghost">Features</button>
-          <button className="btn btn-ghost">Pricing</button>
-          <button className="btn btn-primary">Login</button>
+        <div className="flex-none gap-2 items-center">
+          <span className="badge badge-outline hidden sm:inline">{user?.email}</span>
+          <button className="btn btn-outline btn-sm" onClick={handleSignOut}>Sign out</button>
         </div>
       </div>
 
