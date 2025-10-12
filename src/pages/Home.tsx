@@ -10,6 +10,7 @@ import ImagePreviewModal from '../components/ImagePreviewModal'
 import TextPreviewModal from '../components/TextPreviewModal'
 import RenameItemModal from '../components/RenameItemModal'
 import { useAuth } from '../contexts/AuthContext'
+import { apiFetch } from '../lib/api'
 
 
 export default function Home() {
@@ -99,10 +100,9 @@ export default function Home() {
         form.append('filename', (finalName && finalName.trim().length > 0 ? finalName : (entry.name || entry.file.name)))
         if (descToSend) form.append('description', descToSend)
 
-        const res = await fetch('http://localhost:8080/api/entries/binaries', {
+        const res = await apiFetch('/api/entries/binaries', {
           method: 'POST',
           body: form,
-          credentials: 'include',
         })
         if (!res.ok) {
           const text = await res.text().catch(() => '')
@@ -125,11 +125,10 @@ export default function Home() {
           }
           if (descToSend) payload.description = descToSend
 
-          const res = await fetch('http://localhost:8080/api/entries/link', {
+          const res = await apiFetch('/api/entries/link', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
-            credentials: 'include',
           })
           if (!res.ok) {
             const text = await res.text().catch(() => '')
@@ -147,11 +146,10 @@ export default function Home() {
           }
           if (descToSend) payload.description = descToSend
 
-          const res = await fetch('http://localhost:8080/api/entries/text', {
+          const res = await apiFetch('/api/entries/text', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
-            credentials: 'include',
           })
           if (!res.ok) {
             const text = await res.text().catch(() => '')
