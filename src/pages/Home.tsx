@@ -1,4 +1,4 @@
-import { useMemo, useState, type ChangeEvent, useEffect } from 'react'
+import { useMemo, useState, type ChangeEvent, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import SearchModal from '../components/SearchModal'
 import SectionsSidebar from '../components/SectionsSidebar'
@@ -11,14 +11,17 @@ import TextPreviewModal from '../components/TextPreviewModal'
 import RenameItemModal from '../components/RenameItemModal'
 import { useAuth } from '../contexts/AuthContext'
 import { apiFetch } from '../lib/api'
+import { useSearchEntries } from '../hooks/useSearchEntries'
 
 
 export default function Home() {
   const [query, setQuery] = useState('')
+  const [resultsOpen, setResultsOpen] = useState(false)
   const [cmdkOpen, setCmdkOpen] = useState(false)
   const [pastedItems, setPastedItems] = useState<PastedEntry[]>([])
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
+  const searchWrapRef = useRef<HTMLDivElement>(null)
 
   const handleSignOut = async () => {
     await signOut()
@@ -55,16 +58,28 @@ export default function Home() {
     []
   )
 
-  const searchResults = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return [] as string[]
-    const allItems = sections.flatMap((sec) => sec.items)
-    return allItems.filter((it) => it.toLowerCase().includes(q))
-  }, [query, sections])
+  const { items, loading, error, hasMore, loadMore, canSearch, searchNow } = useSearchEntries({ q: query, minChars: 2, debounceMs: 150, limit: 25, sort: 'relevance' })
 
+  const onChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value
+    setQuery(val)
+    setResultsOpen(val.trim().length > 0)
+  }
+  const clearQuery = () => { setQuery(''); setResultsOpen(false) }
 
-  const onChange = (e: ChangeEvent<HTMLInputElement>) => setQuery(e.target.value)
-  const clearQuery = () => setQuery('')
+  // Click-away: close results when clicking outside the search area while query has text
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (!resultsOpen || query.trim().length === 0) return
+      const el = searchWrapRef.current
+      const target = e.target as Node | null
+      if (el && target && !el.contains(target)) {
+        setResultsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [resultsOpen, query])
 
   // Determine if text is likely a resolvable URL to open in a browser tab
   const isProbablyUrl = (text: string): boolean => {
@@ -304,17 +319,55 @@ export default function Home() {
           {/* Search bar on top of Drop to Save */}
           <div>
             <label htmlFor="search" className="sr-only">Search files</label>
-            <div className="relative w-full max-w-2xl mx-auto">
+            <div ref={searchWrapRef} className="relative w-full max-w-2xl mx-auto" onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (canSearch) { void searchNow() } } }}>
               <SearchInput
                 inputId="search"
                 value={query}
                 onChange={onChange}
                 onClear={clearQuery}
-                placeholder="Search your files..."
-                results={searchResults}
-                showDropdown={query.trim().length > 0}
+                onFocus={() => { if (query.trim().length > 0) setResultsOpen(true) }}
+                placeholder="Search by name or description…"
                 size="md"
               />
+              {query.trim().length > 0 && resultsOpen && (
+                <div className="absolute left-0 right-0 top-full mt-2 z-40">
+                  <div className="bg-base-100 border border-base-300 rounded-box shadow-xl overflow-hidden">
+                    <div className="p-3">
+                      {query.trim().length > 0 && query.trim().length < 2 && (
+                        <div className="text-sm text-base-content/60">Type at least 2 characters…</div>
+                      )}
+                      {loading && (
+                        <div className="text-sm" aria-live="polite">Searching…</div>
+                      )}
+                      {error && (
+                        <div className="alert alert-error text-sm" role="alert" aria-live="polite">{error}</div>
+                      )}
+                      {!loading && !error && canSearch && items.length === 0 && (
+                        <div className="text-sm">No results.</div>
+                      )}
+                    </div>
+                    {items.length > 0 && (
+                      <ul className="divide-y divide-base-300 max-h-[60vh] overflow-auto">
+                        {items.map((it) => (
+                          <li key={it.id} className="p-3 hover:bg-base-200/60">
+                            <div className="font-medium">{it.name}</div>
+                            {it.description && <div className="text-sm text-base-content/70 line-clamp-2">{it.description}</div>}
+                            <div className="text-xs text-base-content/60 flex gap-2 mt-1">
+                              <span>{it.kind}</span>
+                              <span>{new Date(it.created_at).toLocaleString()}</span>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {hasMore && !loading && (
+                      <div className="p-3">
+                        <button className="btn btn-sm" onClick={loadMore}>Load more</button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

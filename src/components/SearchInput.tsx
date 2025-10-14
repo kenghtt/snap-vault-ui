@@ -1,5 +1,5 @@
 import { forwardRef, useMemo } from 'react'
-import type { ChangeEvent } from 'react'
+import type { ChangeEvent, FocusEventHandler } from 'react'
 
 export interface SearchInputProps {
   value: string
@@ -11,10 +11,11 @@ export interface SearchInputProps {
   size?: 'md' | 'lg'
   autoFocus?: boolean
   inputId?: string
+  onFocus?: FocusEventHandler<HTMLInputElement>
 }
 
 const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(function SearchInput(
-  { value, onChange, onClear, placeholder = 'Search...', results = [], showDropdown = false, size = 'md', autoFocus = false, inputId },
+  { value, onChange, onClear, placeholder = 'Search...', results = [], showDropdown = false, size = 'md', autoFocus = false, inputId, onFocus },
   ref
 ) {
   const hasQuery = value.trim().length > 0
@@ -53,6 +54,7 @@ const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(function Sear
           spellCheck={false}
           value={value}
           onChange={onChange}
+          onFocus={onFocus}
           autoFocus={autoFocus}
         />
         {hasQuery ? (
