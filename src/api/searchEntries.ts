@@ -1,7 +1,9 @@
 import { apiJson } from '../lib/api'
 
 export type SortMode = 'relevance' | 'created_desc' | 'created_asc'
-export type SearchItem = { id: number; kind: 'binary' | 'text' | 'link'; name: string; description: string | null; created_at: string }
+export type SearchItem = {
+    uuid: string;
+    id: string; kind: 'binary' | 'text' | 'link'; name: string; description: string | null; created_at: string }
 export type SearchResponse = { items: SearchItem[]; limit: number; offset: number }
 
 function buildQuery(params: Record<string, string | number | undefined>) {

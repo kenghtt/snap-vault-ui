@@ -11,9 +11,10 @@ interface PdfPreviewModalProps {
   open: boolean
   url: string | null
   onClose: () => void
+  onDownload?: () => void
 }
 
-export default function PdfPreviewModal({ open, url, onClose }: PdfPreviewModalProps) {
+export default function PdfPreviewModal({ open, url, onClose, onDownload }: PdfPreviewModalProps) {
   const [numPages, setNumPages] = useState<number | null>(null)
   const [pageNumber, setPageNumber] = useState(1)
   const [scale, setScale] = useState(1.1)
@@ -73,6 +74,9 @@ export default function PdfPreviewModal({ open, url, onClose }: PdfPreviewModalP
             </span>
             <button className="btn btn-sm" disabled={!canNext} onClick={() => setPageNumber((p) => (numPages ? Math.min(numPages, p + 1) : p))} aria-label="Next page">▶</button>
             <div className="divider divider-horizontal m-0"></div>
+            {onDownload && (
+              <button className="btn btn-sm" onClick={onDownload} aria-label="Download">Download</button>
+            )}
             <button className="btn btn-sm btn-ghost" onClick={onClose} aria-label="Close">✕</button>
           </div>
         </div>

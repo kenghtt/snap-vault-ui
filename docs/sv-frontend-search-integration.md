@@ -240,7 +240,7 @@ export function EntriesSearch() {
 
       <ul className="sv-results">
         {items.map(it => (
-          <li key={it.id}>
+          <li key={it.uuid}>
             <div className="sv-title">{it.name}</div>
             {it.description && <div className="sv-desc">{it.description}</div>}
             <div className="sv-meta">

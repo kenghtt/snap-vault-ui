@@ -9,9 +9,12 @@ import PdfPreviewModal from '../components/PdfPreviewModal'
 import ImagePreviewModal from '../components/ImagePreviewModal'
 import TextPreviewModal from '../components/TextPreviewModal'
 import RenameItemModal from '../components/RenameItemModal'
+import BackendTextPreviewModal from '../components/BackendTextPreviewModal'
+import NoPreviewModal from '../components/NoPreviewModal'
 import { useAuth } from '../contexts/AuthContext'
 import { apiFetch } from '../lib/api'
 import { useSearchEntries } from '../hooks/useSearchEntries'
+import { loadPreview, startDownload } from '../lib/entriesPreview'
 
 
 export default function Home() {
@@ -38,9 +41,19 @@ export default function Home() {
   // Image preview modal state
   const [imageOpen, setImageOpen] = useState(false)
   const [imageUrl, setImageUrl] = useState<string | null>(null)
-  // Text preview modal state
+  // Text preview modal state (local items)
   const [textOpen, setTextOpen] = useState(false)
   const [textEntry, setTextEntry] = useState<PastedEntry | null>(null)
+  // Backend preview state
+  const [downloadUuid, setDownloadUuid] = useState<string | null>(null)
+  const [backendName, setBackendName] = useState<string>('')
+  const [backendTextOpen, setBackendTextOpen] = useState(false)
+  const [backendText, setBackendText] = useState<string>('')
+  const [backendTextTruncated, setBackendTextTruncated] = useState(false)
+  const [noPreviewOpen, setNoPreviewOpen] = useState(false)
+  const [backendKind, setBackendKind] = useState<string | undefined>(undefined)
+  const [backendCreatedAt, setBackendCreatedAt] = useState<string | undefined>(undefined)
+  const lastObjUrlRef = useRef<string | null>(null)
   // Upload state
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
@@ -294,7 +307,70 @@ export default function Home() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [])
 
+  const openImage = (url: string, uuid: string) => {
+    // cleanup previous object URL
+    const prev = lastObjUrlRef.current
+    if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev)
+    lastObjUrlRef.current = url
+    setImageUrl(url)
+    setDownloadUuid(uuid)
+    setImageOpen(true)
+  }
+  const openPdf = (url: string, uuid: string) => {
+    const prev = lastObjUrlRef.current
+    if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev)
+    lastObjUrlRef.current = url
+    setPdfUrl(url)
+    setDownloadUuid(uuid)
+    setPdfOpen(true)
+  }
 
+  const handleSearchItemClick = async (it: { id: string; name: string; kind?: string; created_at?: string }) => {
+    try {
+      setBackendName(it.name)
+      setBackendKind(it.kind)
+      setBackendCreatedAt(it.created_at)
+      const uuid = it.id
+      setDownloadUuid(uuid)
+      const res = await loadPreview(uuid)
+      if (res.kind === 'text') {
+        setBackendText(res.text)
+        setBackendTextTruncated(res.truncated)
+        setBackendTextOpen(true)
+        return
+      }
+      if (res.kind === 'blob') {
+        const objUrl = URL.createObjectURL(res.blob)
+        const ct = res.contentType.toLowerCase()
+        if (ct.includes('pdf')) {
+          openPdf(objUrl, uuid)
+        } else if (ct.startsWith('image/')) {
+          openImage(objUrl, uuid)
+        } else {
+          setNoPreviewOpen(true)
+        }
+        return
+      }
+      if (res.kind === 'redirect') {
+        const url = res.url
+        if (/\.pdf($|\?|#)/i.test(url)) {
+          openPdf(url, uuid)
+        } else {
+          // assume image/pdf thumbnail; try image first
+          openImage(url, uuid)
+        }
+        return
+      }
+      if (res.kind === 'nopreview') {
+        setNoPreviewOpen(true)
+        return
+      }
+    } catch (e: unknown) {
+      const msg = (e as { message?: string }).message || 'Failed to load preview'
+      // eslint-disable-next-line no-alert
+      alert(msg)
+    }
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -334,7 +410,7 @@ export default function Home() {
                   <div className="bg-base-100 border border-base-300 rounded-box shadow-xl overflow-hidden">
                     <div className="p-3">
                       {query.trim().length > 0 && query.trim().length < 2 && (
-                        <div className="text-sm text-base-content/60">Type at least 2 characters…</div>
+                        <div className="text-sm text-base-content/60">Type at least 2 characters…000</div>
                       )}
                       {loading && (
                         <div className="text-sm" aria-live="polite">Searching…</div>
@@ -349,7 +425,7 @@ export default function Home() {
                     {items.length > 0 && (
                       <ul className="divide-y divide-base-300 max-h-[60vh] overflow-auto">
                         {items.map((it) => (
-                          <li key={it.id} className="p-3 hover:bg-base-200/60">
+                          <li key={it.uuid} className="p-3 hover:bg-base-200/60 cursor-pointer" onClick={() => { void handleSearchItemClick({ id: it.uuid, name: it.name, kind: it.kind, created_at: it.created_at }) }}>
                             <div className="font-medium">{it.name}</div>
                             {it.description && <div className="text-sm text-base-content/70 line-clamp-2">{it.description}</div>}
                             <div className="text-xs text-base-content/60 flex gap-2 mt-1">
@@ -431,9 +507,43 @@ export default function Home() {
       />
 
       <SearchModal open={cmdkOpen} onClose={() => setCmdkOpen(false)} sections={sections} />
-      <PdfPreviewModal open={pdfOpen} url={pdfUrl} onClose={() => setPdfOpen(false)} />
-      <ImagePreviewModal open={imageOpen} url={imageUrl} onClose={() => setImageOpen(false)} />
+      <PdfPreviewModal
+        open={pdfOpen}
+        url={pdfUrl}
+        onClose={() => {
+          setPdfOpen(false)
+          const prev = lastObjUrlRef.current
+          if (prev && prev.startsWith('blob:')) { URL.revokeObjectURL(prev); lastObjUrlRef.current = null }
+        }}
+        onDownload={downloadUuid ? () => startDownload(downloadUuid) : undefined}
+      />
+      <ImagePreviewModal
+        open={imageOpen}
+        url={imageUrl}
+        onClose={() => {
+          setImageOpen(false)
+          const prev = lastObjUrlRef.current
+          if (prev && prev.startsWith('blob:')) { URL.revokeObjectURL(prev); lastObjUrlRef.current = null }
+        }}
+        onDownload={downloadUuid ? () => startDownload(downloadUuid) : undefined}
+      />
       <TextPreviewModal open={textOpen} entry={textEntry} onClose={() => setTextOpen(false)} />
+      <BackendTextPreviewModal
+        open={backendTextOpen}
+        name={backendName}
+        text={backendText}
+        truncated={backendTextTruncated}
+        onClose={() => setBackendTextOpen(false)}
+        onDownload={downloadUuid ? () => startDownload(downloadUuid) : undefined}
+      />
+      <NoPreviewModal
+        open={noPreviewOpen}
+        name={backendName}
+        kind={backendKind}
+        createdAt={backendCreatedAt}
+        onClose={() => setNoPreviewOpen(false)}
+        onDownload={downloadUuid ? () => startDownload(downloadUuid) : undefined}
+      />
     </div>
   )
 }

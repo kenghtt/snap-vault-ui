@@ -7,9 +7,10 @@ interface ImagePreviewModalProps {
   url: string | null
   alt?: string
   onClose: () => void
+  onDownload?: () => void
 }
 
-export default function ImagePreviewModal({ open, url, alt = 'Image preview', onClose }: ImagePreviewModalProps) {
+export default function ImagePreviewModal({ open, url, alt = 'Image preview', onClose, onDownload }: ImagePreviewModalProps) {
   // Close on Escape no matter what has focus
   useEffect(() => {
     if (!open) return
@@ -35,7 +36,14 @@ export default function ImagePreviewModal({ open, url, alt = 'Image preview', on
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div className="w-[min(96vw,1400px)] h-[min(90vh,900px)] bg-base-100 border border-base-300 rounded-box shadow-xl overflow-hidden flex items-center justify-center p-4">
+      <div className="w-[min(96vw,1400px)] h-[min(90vh,900px)] bg-base-100 border border-base-300 rounded-box shadow-xl overflow-hidden relative flex items-center justify-center p-4">
+        {/* Header actions */}
+        <div className="absolute top-2 right-2 flex gap-2">
+          {onDownload && (
+            <button className="btn btn-sm" onClick={onDownload} aria-label="Download">Download</button>
+          )}
+          <button className="btn btn-sm btn-ghost" onClick={onClose} aria-label="Close">✕</button>
+        </div>
         {/* Constrain image area */}
         <div className="max-w-full max-h-full">
           <Zoom>

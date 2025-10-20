@@ -117,7 +117,7 @@ export default function SearchModal({ open, onClose, panelClassName }: SearchMod
               <div>
                 {/* Hints and states */}
                 {query.trim().length > 0 && query.trim().length < 2 && (
-                  <div className="mt-3 text-sm text-base-content/60">Type at least 2 characters…</div>
+                  <div className="mt-3 text-sm text-base-content/60">Type at least 2 characters… ABC</div>
                 )}
 
                 {loading && (
@@ -136,7 +136,7 @@ export default function SearchModal({ open, onClose, panelClassName }: SearchMod
                 {items.length > 0 && (
                   <ul className="mt-4 divide-y divide-base-300 rounded-box border border-base-300 overflow-hidden">
                     {items.map((it) => (
-                      <li key={it.id} className="p-3 hover:bg-base-200/60">
+                      <li key={it.uuid} className="p-3 hover:bg-base-200/60">
                         <div className="font-medium">{it.name}</div>
                         {it.description && <div className="text-sm text-base-content/70 line-clamp-2">{it.description}</div>}
                         <div className="text-xs text-base-content/60 flex gap-2 mt-1">
