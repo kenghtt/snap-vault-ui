@@ -1,7 +1,7 @@
-import { useMemo, useState, type ChangeEvent, useEffect, useRef } from 'react'
+import { useState, type ChangeEvent, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import SearchModal from '../components/SearchModal'
-import SectionsSidebar from '../components/SectionsSidebar'
+import SectionsSidebar, { type SectionsSidebarHandle } from '../components/SectionsSidebar'
 import SearchInput from '../components/SearchInput'
 import DropZone, { type PastedEntry } from '../components/DropZone'
 import PastedItemsSidebar from '../components/PastedItemsSidebar'
@@ -25,6 +25,7 @@ export default function Home() {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
   const searchWrapRef = useRef<HTMLDivElement>(null)
+  const sidebarRef = useRef<SectionsSidebarHandle>(null)
 
   const handleSignOut = async () => {
     await signOut()
@@ -60,16 +61,6 @@ export default function Home() {
   // Queue of incoming entries to process via the rename modal (one at a time)
   const [entryQueue, setEntryQueue] = useState<PastedEntry[]>([])
 
-  const sections = useMemo(
-    () => [
-      { title: 'Today', items: ['Zoom link: Standup', 'Note: New idea'] },
-      { title: 'Yesterday', items: ['Screenshot: bug.png', 'Text: To-do list'] },
-      { title: '2 days ago', items: ['Image: sketch.jpg', 'Note: Retro notes'] },
-      { title: 'This week', items: ['PDF: design-spec.pdf', 'Link: sprint board'] },
-      { title: '2 weeks ago', items: ['Video: demo.mov', 'Doc: meeting-notes.txt'] },
-    ],
-    []
-  )
 
   const { items, loading, error, hasMore, loadMore, canSearch, searchNow } = useSearchEntries({ q: query, minChars: 2, debounceMs: 150, limit: 25, sort: 'relevance' })
 
@@ -261,6 +252,8 @@ export default function Home() {
       if (success) {
         const finalized: PastedEntry = { ...pendingEntry, displayName: finalName }
         setPastedItems((prev) => [finalized, ...prev])
+        // Refresh the sidebar to show the most recent entries
+        void sidebarRef.current?.refresh()
         // advance to next entry in queue or close
         setEntryQueue((prev) => {
           if (prev.length > 0) {
@@ -388,7 +381,7 @@ export default function Home() {
       {/* Main content */}
       <div className="flex flex-1">
         {/* Left sidebar */}
-        <SectionsSidebar sections={sections} />
+        <SectionsSidebar ref={sidebarRef} onItemClick={(entry) => { void handleSearchItemClick({ id: entry.uuid, name: entry.name, kind: entry.kind, created_at: entry.createdAt }) }} />
 
         {/* Right drop area 80% */}
         <main className="flex-1 p-6 flex flex-col gap-4">
@@ -489,7 +482,8 @@ export default function Home() {
               setTextOpen(true)
               return
             }
-          }}
+          }
+        }
         />
       </div>
 
@@ -506,7 +500,7 @@ export default function Home() {
         uploadError={uploadError}
       />
 
-      <SearchModal open={cmdkOpen} onClose={() => setCmdkOpen(false)} sections={sections} />
+      <SearchModal open={cmdkOpen} onClose={() => setCmdkOpen(false)} sections={[]} />
       <PdfPreviewModal
         open={pdfOpen}
         url={pdfUrl}
